@@ -95,6 +95,51 @@ void createConnection(unsigned int n, vector<int>& fds)
     }
 }
 
+/**
+ *   create a tcp connection to the ip:port specified
+ */
+void createInetConnection(unsigned int n, vector<int>& fds, string ip = "" , unsigned int port = 0)
+{
+    fds.clear();
+    fds.reserve(n);
+
+    struct sockaddr_in inetAddress ;
+    memset(inetAddress, 0, sizeof(inetAddress));
+    inetAddress.sin_family = AF_INET;
+    inetAddress.sin_port = htons(port);
+    if(inet_pton(AF_INET, ip.c_str(), &(inetAddress.sin_addr))<=0)
+    {
+        next = false;
+    }
+
+    for (unsigned int i = 0; next && i < n; i++)
+    {
+        int fd = socket(AF_INET, SOCK_STREAM, 0);
+
+        if (fd > 0)
+        {
+            if (connect(fd, (struct sockaddr*)&inetAddress, sizeof(inetAddress)) != -1)
+            {
+                fds.push_back(fd);
+            }
+            else
+            {
+                close(fd);
+                next = false;
+            }
+        }
+        else
+        {
+            next = false;
+        }
+    }
+
+    for (unsigned int i = 0; !next && i < fds.size(); i++)
+    {
+        close(fds[i]);
+    }
+}
+
 cJSON* parseMultiJson(string &raw_response)
 {
     if (raw_response.find("\r\n0\r\n\r\n") == std::string::npos)
@@ -157,14 +202,25 @@ cJSON* parseJson(string& raw_response)
  *  Give multi request to docker remote api,
  *  return multi cJSON* response
  */
-void getResponseInBatch(vector<string>& request, vector<cJSON*>& response, unsigned int start, unsigned int end, bool isMultiJson = false, bool ignoreResponse = false)
+void getResponseInBatch(vector<string>& request, vector<cJSON*>& response, unsigned int start, unsigned int end, bool isMultiJson = false, bool ignoreResponse = false, unsigned int addressFamily = AF_UNIX, string ip = "" , unsigned int port = 0)
 {
     const int bufferSize = 4096;
     const int timeoutSecond = 5;
     vector<int> sockfd;
     end = (end == 0 || end > request.size()) ? request.size() : end;
     int n = end - start;
-    createConnection(n, sockfd);
+    switch(addressFamily)
+    {
+        case AF_UNIX :
+            createConnection(n, sockfd);
+            break;
+        case AF_INET:
+            createInetConnection(n, sockfd, ip, port);
+            break;
+        default:
+            createConnection(n, sockfd);
+            break;    
+    }
 
     for (int i = 0; i < n; i++)
     {
@@ -205,7 +261,7 @@ void getResponseInBatch(vector<string>& request, vector<cJSON*>& response, unsig
     }
 }
 
-vector<cJSON*> getResponse(vector<string>& request, bool isMultiJson, bool ignoreResponse)
+vector<cJSON*> getResponse(vector<string>& request, bool isMultiJson, bool ignoreResponse, unsigned int addressFamily, string ip, unsigned int port)
 {
     vector<cJSON*> response;
 
@@ -213,7 +269,7 @@ vector<cJSON*> getResponse(vector<string>& request, bool isMultiJson, bool ignor
     {
         for (unsigned int i = 0; i < request.size(); i += 100)
         {
-            getResponseInBatch(request, response, i, i + 100, isMultiJson, ignoreResponse);
+            getResponseInBatch(request, response, i, i + 100, isMultiJson, ignoreResponse, addressFamily, ip, port);
         }
     }
     catch (string str)
