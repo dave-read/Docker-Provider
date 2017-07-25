@@ -171,4 +171,19 @@ public:
 
         return string(result);
     }
+
+    ///
+    /// Create the REST request to get pod info
+    /// https://docs.docker.com/engine/reference/api/docker_remote_api_v1.21/#get-container-stats-based-on-resource-usage
+    ///
+    /// \returns Request in string format
+    ///
+    static string restKubePods(string ip, int port)
+    {
+        string hostInfo(ip);
+        hostInfo += to_string(port);
+        har result[516];
+        snprintf(result, 516, "GET api/v1/pods HTTP/1.1\r\nHost: %s:%d\r\n\r\n", ip.c_str(), port);
+        return string(result);
+    }
 };
