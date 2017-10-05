@@ -57,7 +57,9 @@ module Fluent
           events['items'].each do |items|
               record = {}
               begin
-                  eventId = items['metadata']['uid']
+                  # uuid is preserved across object changes. So eventId 
+                  # needs to include count or lastTimestamp to pickup changes
+                  eventId = items['metadata']['uid'] + "/" + items['count'].to_s                 
                   newEventQueryState.push(eventId)
                   if !eventQueryState.empty? && eventQueryState.include?(eventId)
                     next
@@ -70,6 +72,10 @@ module Fluent
                   record['Type'] = items['type']
                   record['TimeGenerated'] = items['metadata']['creationTimestamp']
                   record['SourceComponent'] = items['source']['component']
+                  # these may be useful to add as fields of append to Reason
+                  record['FirstSeen'] = items['firstTimestamp']
+                  record['LastSeen'] = items['lastTimestamp']
+                  record['Count'] = items['count']
                   if items['source'].key?('host')
                           record['Computer'] = items['source']['host']
                   else
